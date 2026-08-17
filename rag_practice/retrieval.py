@@ -24,15 +24,11 @@ def search_index(
     query: str,
     *,
     index: dict[str, Any],
-    base_url: str,
     top_k: int,
 ) -> list[SearchResult]:
     embedding = index["embedding"]
     query_vector = embed_query(
         query,
-        backend=embedding["backend"],
-        model=embedding["model"],
-        base_url=base_url,
         dimensions=int(embedding["dimensions"]),
     )
 

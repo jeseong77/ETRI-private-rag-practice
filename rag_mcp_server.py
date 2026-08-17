@@ -4,7 +4,7 @@ from typing import Any
 
 from mcp.server import MCPServer
 
-from rag_practice.config import DEFAULT_TOP_K, INDEX_PATH, OLLAMA_URL
+from rag_practice.config import DEFAULT_TOP_K, INDEX_PATH
 from rag_practice.index_store import load_index
 from rag_practice.retrieval import search_index
 
@@ -30,7 +30,6 @@ def search_internal_rules(query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, A
     results = search_index(
         query,
         index=index,
-        base_url=OLLAMA_URL,
         top_k=safe_top_k,
     )
     return {

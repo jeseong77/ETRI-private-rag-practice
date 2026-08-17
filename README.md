@@ -1,62 +1,54 @@
-# ETRI 실습 — Ollama, MCP Host, Private RAG
+# ETRI 실습 — Claude Code와 Local RAG MCP Server
 
-이 저장소는 Markdown 내부 규정을 검색 가능한 색인으로 만들고, 로컬 RAG MCP Server의
-검색 Tool을 Ollama 모델과 연결하는 실습 프로젝트다.
-
-수강생이 직접 실행하는 프로그램은 두 개다.
+이 저장소는 Markdown 내부 규정을 검색 가능한 색인으로 만들고, Claude Code에서 로컬
+RAG 검색 Tool을 사용하는 실습 프로젝트다.
 
 ```text
-1. index_documents.py
-   Markdown → Chunk → Embedding → JSON 색인
-
-2. rag_chat.py
-   사용자 질문 → Ollama → MCP Tool 호출 → RAG 검색 → Ollama 최종 답변
+Markdown 규정
+→ Chunk와 해싱 벡터 생성
+→ JSON 색인 저장
+→ Claude Code가 로컬 MCP Server 연결
+→ search_internal_rules Tool 호출
+→ 검색된 규정을 근거로 답변
 ```
 
-`rag_mcp_server.py`는 `rag_chat.py`가 자동으로 실행한다. 별도 터미널에서 실행하지 않는다.
-
-## 전체 구조
-
-```text
-documents/*.md
-      │
-      ▼
-index_documents.py ──→ storage/index.json
-                              ▲
-                              │ 검색
-사용자 ──→ rag_chat.py ──MCP──→ rag_mcp_server.py
-                │
-                └──── Ollama / MiniMax M3 Cloud
-```
+Claude Code가 MCP Host와 대화 모델 역할을 맡는다. 수강생은 별도의 모델 실행기나
+임베딩 모델을 설치하지 않는다.
 
 ## 준비물
 
 - Python 3.10 이상
-- Ollama
-- MiniMax M3 Cloud 사용 시 인터넷 연결과 Ollama 로그인
+- 교육용 Claude Code Enterprise 계정
+- Claude Code 설치와 로그인
 
-Ollama 설치 파일은 [공식 다운로드 페이지](https://ollama.com/download)에서 받는다.
-
-## 1. 저장소와 Python 환경 준비
+## 1. 저장소 내려받기
 
 ```bash
 git clone https://github.com/jeseong77/ETRI-private-rag-practice.git
 cd ETRI-private-rag-practice
+```
+
+## 2. Python 환경 준비
+
+macOS와 Linux:
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Windows PowerShell에서는 다음 명령으로 가상 환경을 활성화한다.
+Windows PowerShell:
 
 ```powershell
+python -m venv .venv
 .venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-폐쇄망에서는 `mcp` 패키지를 새로 받을 수 없다. 인터넷이 연결된 장소에서 이 준비
-단계를 먼저 완료해야 한다.
+`mcp` 패키지를 내려받아야 하므로 폐쇄망에 들어가기 전에 이 단계를 완료한다.
 
-## 2. Markdown 문서 색인
+## 3. Markdown 문서 색인
 
 ```bash
 python index_documents.py
@@ -64,77 +56,78 @@ python index_documents.py
 
 프로그램은 다음 순서로 실행된다.
 
-1. Ollama가 설치되어 있는지 확인한다.
-2. Ollama가 꺼져 있으면 실행을 시도한다.
-3. EmbeddingGemma 압축 모델이 없으면 다운로드를 시도한다.
-4. 규정 30개를 Chunk 30개로 분리한다.
-5. 각 Chunk의 Embedding과 원문을 `storage/index.json`에 저장한다.
+1. `documents` 폴더의 Markdown 문서를 읽는다.
+2. 두 번째 단계 제목을 기준으로 규정 30개를 Chunk 30개로 나눈다.
+3. 각 Chunk를 384차원 해싱 벡터로 변환한다.
+4. 벡터, 원문, 규정 제목, 파일 이름을 `storage/index.json`에 저장한다.
 
-Ollama가 없거나 폐쇄망에서 모델 다운로드가 실패하면 프로그램은 종료되지 않는다.
-SHA-256 해싱 방식으로 384차원 교육용 벡터를 만들고 같은 JSON 색인을 생성한다.
+해싱 벡터는 단어와 글자가 겹치는 정도를 숫자로 표현하는 교육용 구현이다. 실제 의미
+임베딩 모델과 동일하지 않지만 문서 분할, 벡터 저장, 유사도 검색, RAG Tool 연결 과정을
+인터넷 없이 실습할 수 있다.
 
-해싱 방식은 단어와 글자가 겹치는 정도를 표현한다. 문장의 의미를 학습한 EmbeddingGemma와
-성능이 같지는 않지만 Chunk 생성, 벡터 저장, 유사도 검색 구조를 실습할 수 있다.
+## 4. Local MCP Server 등록
 
-해싱 방식을 직접 선택하려면 다음 명령을 사용한다.
-
-```bash
-python index_documents.py --backend hash
-```
-
-## 3. MiniMax M3 Cloud 준비
-
-MiniMax M3는 Ollama Cloud에서 실행된다. 인터넷 연결이 필요하다.
+가상 환경이 활성화된 같은 터미널에서 실행한다.
 
 ```bash
-ollama signin
-ollama pull minimax-m3:cloud
+python configure_claude_mcp.py
 ```
 
-로그인에는 개인 Ollama 계정을 사용한다. 모델이 준비되지 않았거나 인터넷이 끊기면
-RAG Chat은 종료되지 않고 MCP 검색 결과 원문을 그대로 보여 준다.
+설정 프로그램은 현재 가상 환경의 Python 전체 경로와 `rag_mcp_server.py` 전체 경로를
+Claude Code의 현재 프로젝트 전용 설정에 등록한다. macOS의 `python3`와 Windows의
+`python` 명령 차이를 사용자가 직접 처리할 필요가 없다.
 
-## 4. RAG Chat 실행
-
-```bash
-python rag_chat.py
-```
-
-실행되면 다음 세 상태가 표시된다.
+터미널 결과에서 다음 상태를 확인한다.
 
 ```text
-[색인] 저장된 Chunk와 Embedding 방식
-[Ollama] MiniMax 연결 상태
-[MCP] search_internal_rules Tool 연결 상태
+internal-rules-rag
+Scope: Local config
+Status: Connected
 ```
 
-질문 예시:
+## 5. Claude Code 실행
 
-```text
-USB를 외부로 반출하려면 누구의 승인이 필요한가?
-```
-
-내부에서는 다음 일이 순서대로 발생한다.
-
-1. MCP Host인 `rag_chat.py`가 MiniMax에 질문과 Tool 설명을 전달한다.
-2. MiniMax가 `search_internal_rules` Tool 호출을 요청한다.
-3. MCP Host가 로컬 MCP Server에 `tools/call`을 보낸다.
-4. MCP Server가 `storage/index.json`에서 관련 규정을 검색한다.
-5. MCP Host가 검색 결과를 Ollama 대화에 Tool 결과로 추가한다.
-6. MiniMax가 검색된 원문만 근거로 최종 답변을 작성한다.
-
-모델이 Tool을 호출하지 않으면 MCP Host가 검색 Tool을 직접 실행한 뒤 근거를 다시
-전달한다. Ollama 호출 자체가 실패하면 검색 결과와 출처까지만 출력한다.
-
-한 번 질문한 뒤 종료하려면 다음 명령을 사용한다.
+가상 환경이 활성화된 같은 터미널에서 실행한다.
 
 ```bash
-python rag_chat.py --question "USB를 외부로 반출하려면 누구의 승인이 필요한가?"
+claude
 ```
+
+Claude Code 안에서 다음 명령으로 연결 상태를 확인한다.
+
+```text
+/mcp
+```
+
+목록에 다음 항목이 나타나야 한다.
+
+```text
+internal-rules-rag
+Tool: search_internal_rules
+```
+
+## 6. 규정 질문
+
+Claude Code에 다음과 같이 요청한다.
+
+```text
+내부 규정 검색 도구를 사용해서 USB를 외부로 반출하려면
+누구의 승인이 필요한지 알려줘. 사용한 규정과 파일도 표시해줘.
+```
+
+내부에서는 다음 일이 발생한다.
+
+1. Claude Code가 `search_internal_rules` Tool의 이름·설명·입력 형식을 확인한다.
+2. Claude가 질문과 `top_k` 값을 Tool 인자로 만든다.
+3. Claude Code의 MCP Client가 로컬 MCP Server에 `tools/call` 요청을 보낸다.
+4. MCP Server가 `storage/index.json`에서 질문과 가까운 규정을 찾는다.
+5. MCP Server가 규정 제목, 원문, 출처, 유사도를 반환한다.
+6. Claude가 반환된 원문만 근거로 답변하고 출처를 표시한다.
+
+`CLAUDE.md`에는 내부 규정 질문에서 Tool을 먼저 사용하고, 검색되지 않은 내용을 추측하지
+않도록 하는 프로젝트 지침이 들어 있다.
 
 ## MCP Tool
-
-로컬 MCP Server는 Tool 하나만 공개한다.
 
 ```text
 이름: search_internal_rules
@@ -144,40 +137,32 @@ python rag_chat.py --question "USB를 외부로 반출하려면 누구의 승인
 - top_k: 반환할 규정 수, 기본값 3, 최대 5
 
 출력:
-- 순위와 유사도
+- 검색 순위와 유사도
 - 규정 제목과 원문
-- 원본 파일 이름
-- 색인에 사용한 Embedding 방식
+- 원본 Markdown 파일 이름
+- 색인에 사용한 벡터 방식
 ```
-
-## 폐쇄망 동작
-
-```text
-EmbeddingGemma 다운로드 실패
-→ 해싱 벡터 사용
-→ 색인과 MCP 검색 가능
-
-MiniMax M3 Cloud 연결 실패
-→ 자연어 최종 답변 생성 불가
-→ MCP 검색 결과와 출처 출력
-```
-
-Embedding 폴백과 대화 모델 폴백은 서로 다르다. 해싱 방식은 검색용 벡터만 대신하며
-MiniMax처럼 답변을 작성하지는 않는다.
 
 ## 파일 구성
 
 ```text
 documents/                         가상의 내부 규정 30개
 storage/index.json                 생성된 원문·벡터 색인
-index_documents.py                 첫 번째 실습 프로그램
-rag_chat.py                        두 번째 실습 프로그램, MCP Host
+index_documents.py                 Markdown 색인 프로그램
 rag_mcp_server.py                  로컬 RAG MCP Server
+configure_claude_mcp.py            현재 컴퓨터에 맞는 MCP 설정 등록
+CLAUDE.md                          검색 Tool 사용 지침
 rag_practice/chunking.py           Markdown을 Chunk로 분리
-rag_practice/embedding.py          Ollama와 해싱 Embedding
+rag_practice/embedding.py          해싱 벡터 생성
 rag_practice/retrieval.py          코사인 유사도 검색
-rag_practice/ollama_chat.py        Ollama Chat API 연결
 ```
+
+## 문제가 생겼을 때
+
+- `storage/index.json`이 없으면 `python index_documents.py`를 먼저 실행한다.
+- MCP Server가 연결되지 않으면 `.venv` 폴더와 등록 명령 실행 여부를 확인한다.
+- Python 패키지를 찾지 못하면 `python -m pip install -r requirements.txt`를 다시 실행한다.
+- 등록 상태는 `claude mcp get internal-rules-rag`로 확인한다.
 
 ## 검증
 
@@ -187,9 +172,7 @@ python -m unittest discover -s tests -v
 
 검증에는 다음 항목이 포함된다.
 
-- 규정 30개 Chunk 분리
-- 해싱 검색 결과
-- Ollama 연결 실패 폴백
-- Ollama Embedding API 응답 처리
-- MCP Server Tool 목록과 실행
-- Ollama Tool 호출을 MCP Server 실행으로 연결하는 Host 루프
+- Markdown 규정 30개 Chunk 분리
+- 질문과 관련된 USB 반출 규정 검색
+- 현재 가상 환경 Python을 사용하는 Claude Code 등록 명령
+- MCP Server의 Tool 목록과 실제 검색 결과
