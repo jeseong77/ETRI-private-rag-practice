@@ -1,129 +1,182 @@
-# ETRI 실습 — Local Embedding과 Private RAG
+# ETRI 실습 — Ollama, MCP Host, Private RAG
 
-이 저장소는 내부 문서를 작은 조각으로 나누고, 각 조각을 벡터로 변환한 뒤,
-질문과 가까운 원문을 찾는 과정을 터미널에서 확인하는 실습 프로젝트다.
+이 저장소는 Markdown 내부 규정을 검색 가능한 색인으로 만들고, 로컬 RAG MCP Server의
+검색 Tool을 Ollama 모델과 연결하는 실습 프로젝트다.
+
+수강생이 직접 실행하는 프로그램은 두 개다.
 
 ```text
-문서 읽기 → Chunk 생성 → Embedding 생성 → 검색 색인 저장
-질문 입력 → 질문 Embedding 생성 → 유사한 Chunk 검색 → 답변용 근거 구성
+1. index_documents.py
+   Markdown → Chunk → Embedding → JSON 색인
+
+2. rag_chat.py
+   사용자 질문 → Ollama → MCP Tool 호출 → RAG 검색 → Ollama 최종 답변
+```
+
+`rag_mcp_server.py`는 `rag_chat.py`가 자동으로 실행한다. 별도 터미널에서 실행하지 않는다.
+
+## 전체 구조
+
+```text
+documents/*.md
+      │
+      ▼
+index_documents.py ──→ storage/index.json
+                              ▲
+                              │ 검색
+사용자 ──→ rag_chat.py ──MCP──→ rag_mcp_server.py
+                │
+                └──── Ollama / MiniMax M3 Cloud
 ```
 
 ## 준비물
 
-- Python 3.9 이상
-- Ollama: EmbeddingGemma를 사용할 때만 필요하다.
+- Python 3.10 이상
+- Ollama
+- MiniMax M3 Cloud 사용 시 인터넷 연결과 Ollama 로그인
 
-파이썬 외부 패키지는 사용하지 않는다. Ollama가 없거나 임베딩 모델을 내려받지 못해도
-해싱 방식의 대체 벡터로 전체 실습을 끝낼 수 있다.
+Ollama 설치 파일은 [공식 다운로드 페이지](https://ollama.com/download)에서 받는다.
 
-## 가장 짧은 실행 방법
-
-```bash
-python main.py
-```
-
-`main.py`는 Ollama와 EmbeddingGemma를 확인하고, 모델이 없으면 자동으로 다운로드를
-시도한다. Ollama가 없거나 폐쇄망에서 다운로드가 실패하면 프로그램을 종료하지 않고
-해싱 대체 모드로 문서 분리, 색인, 검색, RAG 입력 생성을 이어서 실행한다.
-
-`requirements.txt`는 파이썬 패키지만 설치할 수 있다. Ollama는 모델을 실행하는 별도
-프로그램이므로 `requirements.txt`로 설치할 수 없다. 이 저장소는 외부 파이썬 패키지를
-사용하지 않아 패키지 설치 단계 자체가 필요하지 않다.
-
-## 1. 저장소 내려받기
+## 1. 저장소와 Python 환경 준비
 
 ```bash
 git clone https://github.com/jeseong77/ETRI-private-rag-practice.git
 cd ETRI-private-rag-practice
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-## 2. 임베딩 모델 준비
+Windows PowerShell에서는 다음 명령으로 가상 환경을 활성화한다.
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+폐쇄망에서는 `mcp` 패키지를 새로 받을 수 없다. 인터넷이 연결된 장소에서 이 준비
+단계를 먼저 완료해야 한다.
+
+## 2. Markdown 문서 색인
 
 ```bash
-python prepare.py
+python index_documents.py
 ```
 
-이 명령은 다음 순서로 동작한다.
+프로그램은 다음 순서로 실행된다.
 
-1. Ollama 설치 여부를 확인한다.
-2. 로컬 Ollama가 실행 중인지 확인한다.
-3. `embeddinggemma:300m-qat-q4_0` 모델이 없으면 내려받는다.
-4. 준비에 실패해도 해싱 대체 모드로 실습할 수 있음을 안내한다.
+1. Ollama가 설치되어 있는지 확인한다.
+2. Ollama가 꺼져 있으면 실행을 시도한다.
+3. EmbeddingGemma 압축 모델이 없으면 다운로드를 시도한다.
+4. 규정 30개를 Chunk 30개로 분리한다.
+5. 각 Chunk의 Embedding과 원문을 `storage/index.json`에 저장한다.
 
-EmbeddingGemma 압축 모델은 약 239MB다. 한 번 내려받으면 이후 임베딩 계산은
-로컬 컴퓨터에서 수행된다.
+Ollama가 없거나 폐쇄망에서 모델 다운로드가 실패하면 프로그램은 종료되지 않는다.
+SHA-256 해싱 방식으로 384차원 교육용 벡터를 만들고 같은 JSON 색인을 생성한다.
 
-## 3. 문서 색인
+해싱 방식은 단어와 글자가 겹치는 정도를 표현한다. 문장의 의미를 학습한 EmbeddingGemma와
+성능이 같지는 않지만 Chunk 생성, 벡터 저장, 유사도 검색 구조를 실습할 수 있다.
+
+해싱 방식을 직접 선택하려면 다음 명령을 사용한다.
 
 ```bash
-python ingest.py
+python index_documents.py --backend hash
 ```
 
-`documents/보안_및_자료_취급_규정.md`에 있는 규정 30개를 읽어 30개의 Chunk로
-나누고, 각 Chunk의 벡터와 원문을 `storage/index.json`에 저장한다.
+## 3. MiniMax M3 Cloud 준비
 
-Ollama 또는 모델을 사용할 수 없으면 자동으로 해싱 대체 모드가 선택된다. 이 모드는
-단어가 겹치는 정도를 벡터로 표현하는 교육용 대체 구현이며 의미를 이해하는 임베딩
-모델과 성능이 같지 않다. 현재 사용 중인 방식은 터미널과 색인 파일에 기록된다.
-
-대체 모드를 직접 선택하려면 다음 명령을 사용한다.
+MiniMax M3는 Ollama Cloud에서 실행된다. 인터넷 연결이 필요하다.
 
 ```bash
-python ingest.py --backend hash
+ollama signin
+ollama pull minimax-m3:cloud
 ```
 
-## 4. 유사한 규정 검색
+로그인에는 개인 Ollama 계정을 사용한다. 모델이 준비되지 않았거나 인터넷이 끊기면
+RAG Chat은 종료되지 않고 MCP 검색 결과 원문을 그대로 보여 준다.
+
+## 4. RAG Chat 실행
 
 ```bash
-python search.py "USB를 외부로 반출하려면 어떤 승인이 필요한가?"
+python rag_chat.py
 ```
 
-질문을 현재 색인과 같은 방식으로 벡터화하고, 코사인 유사도가 높은 규정부터
-보여 준다. 코사인 유사도는 두 벡터의 방향이 얼마나 가까운지를 나타내는 값이다.
+실행되면 다음 세 상태가 표시된다.
 
-## 5. RAG 입력 확인
+```text
+[색인] 저장된 Chunk와 Embedding 방식
+[Ollama] MiniMax 연결 상태
+[MCP] search_internal_rules Tool 연결 상태
+```
+
+질문 예시:
+
+```text
+USB를 외부로 반출하려면 누구의 승인이 필요한가?
+```
+
+내부에서는 다음 일이 순서대로 발생한다.
+
+1. MCP Host인 `rag_chat.py`가 MiniMax에 질문과 Tool 설명을 전달한다.
+2. MiniMax가 `search_internal_rules` Tool 호출을 요청한다.
+3. MCP Host가 로컬 MCP Server에 `tools/call`을 보낸다.
+4. MCP Server가 `storage/index.json`에서 관련 규정을 검색한다.
+5. MCP Host가 검색 결과를 Ollama 대화에 Tool 결과로 추가한다.
+6. MiniMax가 검색된 원문만 근거로 최종 답변을 작성한다.
+
+모델이 Tool을 호출하지 않으면 MCP Host가 검색 Tool을 직접 실행한 뒤 근거를 다시
+전달한다. Ollama 호출 자체가 실패하면 검색 결과와 출처까지만 출력한다.
+
+한 번 질문한 뒤 종료하려면 다음 명령을 사용한다.
 
 ```bash
-python ask.py "USB를 외부로 반출하려면 어떤 승인이 필요한가?"
+python rag_chat.py --question "USB를 외부로 반출하려면 누구의 승인이 필요한가?"
 ```
 
-검색된 원문을 LLM에 전달할 수 있는 프롬프트로 조립해 보여 준다. 여기까지가
-Retrieval-Augmented Generation에서 Retrieval, 즉 근거 검색과 입력 보강에 해당한다.
+## MCP Tool
 
-Ollama에 대화 모델이 이미 설치되어 있다면 모델 이름을 지정해 답변 생성까지 실행할
-수 있다.
+로컬 MCP Server는 Tool 하나만 공개한다.
 
-```bash
-python ask.py "USB를 외부로 반출하려면 어떤 승인이 필요한가?" --chat-model gemma4:e2b
+```text
+이름: search_internal_rules
+
+입력:
+- query: 검색할 자연어 질문
+- top_k: 반환할 규정 수, 기본값 3, 최대 5
+
+출력:
+- 순위와 유사도
+- 규정 제목과 원문
+- 원본 파일 이름
+- 색인에 사용한 Embedding 방식
 ```
 
-대화 모델은 이 저장소가 자동으로 내려받지 않는다. 수강 환경의 컴퓨터 성능과 이미
-설치된 모델이 다를 수 있기 때문이다.
+## 폐쇄망 동작
 
-## 색인을 다시 만들어야 하는 경우
+```text
+EmbeddingGemma 다운로드 실패
+→ 해싱 벡터 사용
+→ 색인과 MCP 검색 가능
 
-- 원본 문서를 수정한 경우
-- Chunk 분리 기준을 바꾼 경우
-- 임베딩 모델을 바꾼 경우
-- 해싱 대체 모드에서 EmbeddingGemma 방식으로 전환한 경우
+MiniMax M3 Cloud 연결 실패
+→ 자연어 최종 답변 생성 불가
+→ MCP 검색 결과와 출처 출력
+```
 
-서로 다른 모델이 만든 벡터는 같은 공간에서 비교할 수 없다. 색인을 만들 때 사용한
-방식은 `storage/index.json`에 저장되며 검색도 반드시 같은 방식을 사용한다.
+Embedding 폴백과 대화 모델 폴백은 서로 다르다. 해싱 방식은 검색용 벡터만 대신하며
+MiniMax처럼 답변을 작성하지는 않는다.
 
 ## 파일 구성
 
 ```text
-documents/                         실습용 규정 원문
-rag_practice/chunking.py           Markdown 문서를 Chunk로 분리
-rag_practice/embedding.py          Ollama와 해싱 임베딩 구현
-rag_practice/index_store.py        벡터와 원문 저장
+documents/                         가상의 내부 규정 30개
+storage/index.json                 생성된 원문·벡터 색인
+index_documents.py                 첫 번째 실습 프로그램
+rag_chat.py                        두 번째 실습 프로그램, MCP Host
+rag_mcp_server.py                  로컬 RAG MCP Server
+rag_practice/chunking.py           Markdown을 Chunk로 분리
+rag_practice/embedding.py          Ollama와 해싱 Embedding
 rag_practice/retrieval.py          코사인 유사도 검색
-rag_practice/generation.py         검색 근거와 질문을 LLM 입력으로 구성
-prepare.py                         Ollama와 모델 준비 확인
-main.py                            준비부터 검색까지 한 번에 실행
-ingest.py                          문서 색인 생성
-search.py                          관련 Chunk 검색
-ask.py                             RAG 입력 확인과 선택적 답변 생성
+rag_practice/ollama_chat.py        Ollama Chat API 연결
 ```
 
 ## 검증
@@ -132,4 +185,11 @@ ask.py                             RAG 입력 확인과 선택적 답변 생성
 python -m unittest discover -s tests -v
 ```
 
-검증은 외부 네트워크를 사용하지 않는다.
+검증에는 다음 항목이 포함된다.
+
+- 규정 30개 Chunk 분리
+- 해싱 검색 결과
+- Ollama 연결 실패 폴백
+- Ollama Embedding API 응답 처리
+- MCP Server Tool 목록과 실행
+- Ollama Tool 호출을 MCP Server 실행으로 연결하는 Host 루프

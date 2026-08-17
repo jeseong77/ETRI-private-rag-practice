@@ -1,23 +1,24 @@
-# 실습 과제 — 내부 규정 검색 RAG
+# 실습 과제 — Ollama와 MCP를 연결한 내부 규정 RAG
 
 ## 목표
 
-내부 규정 30개를 검색 가능한 색인으로 만들고, 자연어 질문과 관련된 원문을 찾아
-LLM에 전달할 근거를 구성한다.
+내부 규정 30개를 검색 가능한 색인으로 만든다. Python MCP Host에서 Ollama의 MiniMax
+모델과 로컬 RAG MCP Server를 연결하고, 자연어 질문에 대한 근거와 답변을 확인한다.
 
 ## 완료 기준
 
-1. `python main.py`가 준비, 색인, 검색, RAG 입력 생성을 순서대로 실행한다.
-2. `python ingest.py`가 규정 30개를 색인한다.
-3. `python search.py`가 질문과 관련된 규정을 유사도 순서로 출력한다.
-4. `python ask.py`가 검색된 규정과 출처를 포함한 LLM 입력을 출력한다.
-5. Ollama 연결이 없을 때 해싱 대체 모드가 명확히 표시된다.
-6. 색인에 사용한 임베딩 방식과 검색에 사용한 방식이 같다.
+1. `python index_documents.py`가 규정 30개를 색인한다.
+2. 색인에 사용한 Embedding 방식이 터미널과 JSON에 기록된다.
+3. `python rag_chat.py`가 RAG MCP Server를 자동으로 실행한다.
+4. MCP Server가 `search_internal_rules` Tool을 공개한다.
+5. MiniMax의 Tool 호출이 MCP Tool 실행과 연결된다.
+6. Ollama 연결 실패 시 검색 결과와 출처가 대신 표시된다.
 
 ## 관찰할 내용
 
 - 원본 문서의 제목 하나가 Chunk 하나로 나뉘는 과정
 - 문장이 숫자 벡터로 바뀐 뒤 원문과 함께 저장되는 구조
-- 질문 벡터와 문서 벡터를 비교해 관련 규정을 찾는 과정
-- 검색된 원문이 LLM 입력에 추가되는 방식
-- 임베딩 모델과 답변 생성 모델이 서로 다른 역할을 맡는 이유
+- MCP Host가 로컬 MCP Server를 자식 프로세스로 실행하는 과정
+- MiniMax가 Tool 이름·설명·입력 형식을 전달받는 과정
+- Tool 실행 결과가 Ollama의 다음 입력에 추가되는 과정
+- Embedding 모델, MCP Server, 대화 모델이 맡는 서로 다른 책임

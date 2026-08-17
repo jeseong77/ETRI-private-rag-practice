@@ -89,7 +89,7 @@ def pull_model(model: str, base_url: str) -> None:
             last_status = status
 
 
-def ensure_embedding_model(model: str, base_url: str) -> ModelPreparation:
+def ensure_model(model: str, base_url: str, label: str) -> ModelPreparation:
     if not start_local_ollama(base_url):
         if shutil.which("ollama") is None:
             return ModelPreparation(
@@ -106,17 +106,21 @@ def ensure_embedding_model(model: str, base_url: str) -> ModelPreparation:
         if model in models:
             return ModelPreparation(
                 ready=True,
-                message=f"임베딩 모델이 준비되어 있습니다: {model}",
+                message=f"{label} 모델이 준비되어 있습니다: {model}",
             )
 
-        print(f"[준비] 임베딩 모델을 내려받습니다: {model}")
+        print(f"[준비] {label} 모델을 내려받습니다: {model}")
         pull_model(model, base_url)
         return ModelPreparation(
             ready=True,
-            message=f"임베딩 모델 다운로드를 완료했습니다: {model}",
+            message=f"{label} 모델 다운로드를 완료했습니다: {model}",
         )
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as error:
         return ModelPreparation(
             ready=False,
-            message=f"임베딩 모델 다운로드에 실패했습니다: {error}",
+            message=f"{label} 모델 다운로드에 실패했습니다: {error}",
         )
+
+
+def ensure_embedding_model(model: str, base_url: str) -> ModelPreparation:
+    return ensure_model(model, base_url, "Embedding")

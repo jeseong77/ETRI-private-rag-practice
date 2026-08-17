@@ -42,6 +42,6 @@ def save_index(
 def load_index(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(
-            f"검색 색인이 없습니다: {path}\n먼저 python ingest.py를 실행하세요."
+            f"검색 색인이 없습니다: {path}\n먼저 python index_documents.py를 실행하세요."
         )
     return json.loads(path.read_text(encoding="utf-8"))
