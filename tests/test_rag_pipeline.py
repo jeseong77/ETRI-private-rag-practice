@@ -10,8 +10,9 @@ from pathlib import Path
 from rag_practice.chunking import load_document_chunks
 from rag_practice.config import DOCUMENTS_DIR
 from rag_practice.embedding import create_embeddings
+from rag_practice.generation import build_rag_prompt, generate_with_ollama
 from rag_practice.index_store import load_index, save_index
-from rag_practice.retrieval import search_index
+from rag_practice.retrieval import SearchResult, search_index
 
 
 class RagPipelineTest(unittest.TestCase):
@@ -90,6 +91,61 @@ class RagPipelineTest(unittest.TestCase):
         self.assertEqual(result.backend, "ollama")
         self.assertEqual(result.dimensions, 3)
         self.assertEqual(len(result.vectors), 2)
+
+    def test_rag_prompt_is_sent_to_ollama_chat_api(self) -> None:
+        received_prompt = []
+
+        class ChatHandler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                content_length = int(self.headers["Content-Length"])
+                request_body = json.loads(self.rfile.read(content_length))
+                received_prompt.append(request_body["messages"][0]["content"])
+                response_body = json.dumps(
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "정보 보안 담당자의 사전 승인이 필요합니다. [근거 1]",
+                        }
+                    },
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response_body)))
+                self.end_headers()
+                self.wfile.write(response_body)
+
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+        prompt = build_rag_prompt(
+            "USB 반출에 필요한 승인은?",
+            [
+                SearchResult(
+                    score=0.9,
+                    source="규정.md",
+                    heading="규칙 13. USB 외부 반출",
+                    text="정보 보안 담당자의 사전 승인을 받아야 한다.",
+                )
+            ],
+        )
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ChatHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            answer = generate_with_ollama(
+                prompt,
+                model="local-chat-model",
+                base_url=f"http://127.0.0.1:{server.server_port}",
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertIn("정보 보안 담당자", answer)
+        self.assertIn("규칙 13. USB 외부 반출", received_prompt[0])
+        self.assertIn("USB 반출에 필요한 승인은?", received_prompt[0])
 
 
 if __name__ == "__main__":
