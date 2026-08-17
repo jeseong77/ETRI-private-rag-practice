@@ -9,7 +9,7 @@ from rag_practice.retrieval import SearchResult
 
 def build_rag_prompt(question: str, results: list[SearchResult]) -> str:
     evidence = "\n\n".join(
-        f"[근거 {number}]\n출처: {result.source}\n{result.text}"
+        f"[근거 {number}]\n출처: {result.source}\n제목: {result.heading}\n{result.text}"
         for number, result in enumerate(results, start=1)
     )
     return (

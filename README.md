@@ -16,6 +16,20 @@
 파이썬 외부 패키지는 사용하지 않는다. Ollama가 없거나 임베딩 모델을 내려받지 못해도
 해싱 방식의 대체 벡터로 전체 실습을 끝낼 수 있다.
 
+## 가장 짧은 실행 방법
+
+```bash
+python main.py
+```
+
+`main.py`는 Ollama와 EmbeddingGemma를 확인하고, 모델이 없으면 자동으로 다운로드를
+시도한다. Ollama가 없거나 폐쇄망에서 다운로드가 실패하면 프로그램을 종료하지 않고
+해싱 대체 모드로 문서 분리, 색인, 검색, RAG 입력 생성을 이어서 실행한다.
+
+`requirements.txt`는 파이썬 패키지만 설치할 수 있다. Ollama는 모델을 실행하는 별도
+프로그램이므로 `requirements.txt`로 설치할 수 없다. 이 저장소는 외부 파이썬 패키지를
+사용하지 않아 패키지 설치 단계 자체가 필요하지 않다.
+
 ## 1. 저장소 내려받기
 
 ```bash
@@ -106,6 +120,7 @@ rag_practice/index_store.py        벡터와 원문 저장
 rag_practice/retrieval.py          코사인 유사도 검색
 rag_practice/generation.py         검색 근거와 질문을 LLM 입력으로 구성
 prepare.py                         Ollama와 모델 준비 확인
+main.py                            준비부터 검색까지 한 번에 실행
 ingest.py                          문서 색인 생성
 search.py                          관련 Chunk 검색
 ask.py                             RAG 입력 확인과 선택적 답변 생성
