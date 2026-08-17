@@ -57,4 +57,3 @@ def load_document_chunks(documents_dir: Path) -> tuple[list[Path], list[Chunk]]:
     for document in documents:
         chunks.extend(chunk_markdown(document))
     return documents, chunks
-

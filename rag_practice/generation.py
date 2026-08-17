@@ -50,4 +50,3 @@ def generate_with_ollama(
     if not isinstance(content, str) or not content.strip():
         raise RuntimeError("Ollama 답변에 텍스트가 없습니다.")
     return content.strip()
-

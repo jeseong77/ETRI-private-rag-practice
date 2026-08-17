@@ -146,4 +146,3 @@ def embed_query(
     if backend == "ollama":
         return ollama_embed([query], model=model, base_url=base_url)[0]
     raise EmbeddingUnavailable(f"색인에 기록된 임베딩 방식을 해석할 수 없습니다: {backend}")
-

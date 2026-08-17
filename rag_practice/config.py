@@ -15,4 +15,3 @@ EMBEDDING_MODEL = os.environ.get(
 OLLAMA_URL = os.environ.get("RAG_OLLAMA_URL", "http://127.0.0.1:11434")
 HASH_DIMENSIONS = 384
 DEFAULT_TOP_K = 3
-
